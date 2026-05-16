@@ -4,56 +4,124 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>GitHub Dev Card Generator</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
     <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
     <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
     <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body { font-family: 'Inter', sans-serif; background-color: #0d1117; color: #c9d1d9; }
+        .glass-card { background: rgba(22, 27, 34, 0.8); border: 1px solid #30363d; backdrop-filter: blur(10px); }
+        .btn-primary { background-image: linear-gradient(-180deg, #3fb950, #2ea043 90%); transition: transform 0.2s cubic-bezier(0.3, 0, 0.5, 1); }
+        .btn-primary:hover { transform: scale(1.02); background-image: linear-gradient(-180deg, #46df5a, #30b348 90%); }
+        .skeleton { background: linear-gradient(90deg, #21262d 25%, #30363d 50%, #21262d 75%); background-size: 200% 100%; animation: loading 1.5s infinite; }
+        @keyframes loading { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
+        .fade-in { animation: fadeIn 0.6s ease-out forwards; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+    </style>
 </head>
-<body class="bg-gray-900 text-white min-h-screen flex items-center justify-center">
-    <div id="root"></div>
+<body class="min-h-screen flex flex-col items-center justify-center p-4">
+    <div id="root" class="w-full max-w-[600px]"></div>
 
     <script type="text/babel">
-        function App() {
-            const [username, setUsername] = React.useState('');
-            const [result, setResult] = React.useState(null);
-            const [loading, setLoading] = React.useState(false);
+        const { useState } = React;
 
-            const generateCard = async () => {
+        function App() {
+            const [username, setUsername] = useState('');
+            const [loading, setLoading] = useState(false);
+            const [cardData, setCardData] = useState(null);
+            const [error, setError] = useState(null);
+            const [copied, setCopied] = useState(false);
+
+            // Fix: Safe default for local dev
+            const rawBackendUrl = "${BACKEND_URL}";
+            const BACKEND_URL = rawBackendUrl.includes("{") ? "http://localhost:8080" : rawBackendUrl;
+
+            const handleGenerate = async () => {
+                if (!username.trim()) return;
                 setLoading(true);
+                setError(null);
+                setCardData(null);
+                
                 try {
-                    const response = await fetch('http://localhost:8080/generate', {
+                    const response = await fetch(`${BACKEND_URL}/generate`, {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ username })
+                        body: JSON.stringify({ username: username.trim() })
                     });
-                    const data = await response.json();
-                    setResult(data.result);
-                } catch (error) {
-                    console.error("Error generating card:", error);
+                    
+                    const data = await response.json(); // Read JSON only once
+                    
+                    if (!response.ok || data.status === "error") {
+                        throw new Error(data.detail || "API error occurred");
+                    }
+                    
+                    // Fetch the actual HTML content from the card_url
+                    const cardRes = await fetch(`${BACKEND_URL}${data.card_url}`);
+                    const html = await cardRes.text();
+                    
+                    setCardData({ html, url: `${BACKEND_URL}${data.card_url}` });
+                } catch (err) {
+                    setError(err.message);
+                } finally {
+                    setLoading(false);
                 }
-                setLoading(false);
+            };
+
+            const copyToClipboard = () => {
+                if (cardData?.url) {
+                    navigator.clipboard.writeText(cardData.url);
+                    setCopied(true);
+                    setTimeout(() => setCopied(false), 2000);
+                }
             };
 
             return (
-                <div className="p-8 bg-gray-800 rounded-lg shadow-xl w-96">
-                    <h1 className="text-2xl font-bold mb-4 text-center">GitHub Dev Card</h1>
-                    <input 
-                        type="text" 
-                        placeholder="GitHub Username" 
-                        className="w-full p-2 mb-4 bg-gray-700 rounded border border-gray-600 focus:outline-none focus:border-blue-500"
-                        value={username}
-                        onChange={(e) => setUsername(e.target.value)}
-                    />
-                    <button 
-                        onClick={generateCard}
-                        disabled={loading}
-                        className="w-full bg-blue-600 hover:bg-blue-700 p-2 rounded font-bold transition-colors disabled:opacity-50"
-                    >
-                        {loading ? 'Generating...' : 'Generate Card'}
-                    </button>
-                    {result && (
-                        <div className="mt-6 p-4 bg-gray-700 rounded text-sm whitespace-pre-wrap">
-                            {result}
+                <div className="flex flex-col items-center">
+                    <div className="text-center mb-10">
+                        <h1 className="text-4xl font-bold text-white mb-2 tracking-tight">GitHub Dev Card Generator</h1>
+                        <p className="text-gray-400 text-lg">Enter any public GitHub username.</p>
+                    </div>
+
+                    <div className="glass-card w-full p-6 rounded-2xl mb-8">
+                        <div className="flex flex-col sm:flex-row gap-3">
+                            <input 
+                                type="text"
+                                value={username}
+                                onChange={(e) => setUsername(e.target.value)}
+                                placeholder="e.g. torvalds"
+                                className="flex-1 bg-[#0d1117] border border-[#30363d] rounded-xl px-4 py-3 text-white focus:outline-none focus:ring-2 focus:ring-green-500 transition-all placeholder-gray-600"
+                                onKeyPress={(e) => e.key === 'Enter' && handleGenerate()}
+                            />
+                            <button 
+                                onClick={handleGenerate}
+                                disabled={loading}
+                                className="btn-primary text-white font-semibold px-8 py-3 rounded-xl disabled:opacity-50"
+                            >
+                                {loading ? 'Generating...' : 'Generate Card'}
+                            </button>
+                        </div>
+                        {error && <p className="mt-4 text-red-400 text-sm">⚠️ {error}</p>}
+                    </div>
+
+                    {loading && (
+                        <div className="w-full flex flex-col items-center space-y-4">
+                            <div className="skeleton w-[350px] h-[200px] rounded-2xl"></div>
+                            <p className="text-gray-500 animate-pulse">Gemini is orchestrating MCP tools...</p>
+                        </div>
+                    )}
+
+                    {cardData && !loading && (
+                        <div className="w-full flex flex-col items-center fade-in">
+                            <div 
+                                className="mb-6 shadow-2xl rounded-2xl overflow-hidden"
+                                dangerouslySetInnerHTML={{ __html: cardData.html }}
+                            />
+                            <button onClick={copyToClipboard} className="bg-[#21262d] hover:bg-[#30363d] text-[#c9d1d9] px-6 py-2 rounded-lg border border-[#30363d] transition-colors">
+                                {copied ? "✅ Copied URL!" : "Share Card URL"}
+                            </button>
                         </div>
                     )}
                 </div>
