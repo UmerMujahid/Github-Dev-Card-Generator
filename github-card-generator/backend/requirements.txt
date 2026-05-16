@@ -1,0 +1,6 @@
+﻿fastapi
+uvicorn
+mcp[cli]
+google-generativeai
+python-dotenv
+httpx

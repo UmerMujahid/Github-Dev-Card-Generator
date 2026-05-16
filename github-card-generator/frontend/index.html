@@ -1,0 +1,67 @@
+﻿<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GitHub Dev Card Generator</title>
+    <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-900 text-white min-h-screen flex items-center justify-center">
+    <div id="root"></div>
+
+    <script type="text/babel">
+        function App() {
+            const [username, setUsername] = React.useState('');
+            const [result, setResult] = React.useState(null);
+            const [loading, setLoading] = React.useState(false);
+
+            const generateCard = async () => {
+                setLoading(true);
+                try {
+                    const response = await fetch('http://localhost:8080/generate', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ username })
+                    });
+                    const data = await response.json();
+                    setResult(data.result);
+                } catch (error) {
+                    console.error("Error generating card:", error);
+                }
+                setLoading(false);
+            };
+
+            return (
+                <div className="p-8 bg-gray-800 rounded-lg shadow-xl w-96">
+                    <h1 className="text-2xl font-bold mb-4 text-center">GitHub Dev Card</h1>
+                    <input 
+                        type="text" 
+                        placeholder="GitHub Username" 
+                        className="w-full p-2 mb-4 bg-gray-700 rounded border border-gray-600 focus:outline-none focus:border-blue-500"
+                        value={username}
+                        onChange={(e) => setUsername(e.target.value)}
+                    />
+                    <button 
+                        onClick={generateCard}
+                        disabled={loading}
+                        className="w-full bg-blue-600 hover:bg-blue-700 p-2 rounded font-bold transition-colors disabled:opacity-50"
+                    >
+                        {loading ? 'Generating...' : 'Generate Card'}
+                    </button>
+                    {result && (
+                        <div className="mt-6 p-4 bg-gray-700 rounded text-sm whitespace-pre-wrap">
+                            {result}
+                        </div>
+                    )}
+                </div>
+            );
+        }
+
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<App />);
+    </script>
+</body>
+</html>
